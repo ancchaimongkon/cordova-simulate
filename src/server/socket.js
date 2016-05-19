@@ -1,103 +1,156 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 
+/*
+ * This module implements communication protocol as described
+ */
+
 var log = require('./log'),
     config = require('./config'),
     livereload = require('./live-reload/live-reload-server'),
-    telemetry = require('./telemetry-helper');
+    telemetry = require('./telemetry-helper'),
+    q = require('q');
 
-var appHost = 'app-host';
-var simHost = 'sim-host';
+// make variable match the literal
+var APP_HOST = 'APP_HOST',
+    SIM_HOST = 'SIM_HOST';
 
 var hostSockets = {};
+
 var pendingEmits = {};
-pendingEmits[appHost] = [];
-pendingEmits[simHost] = [];
+pendingEmits[APP_HOST] = [];
+pendingEmits[SIM_HOST] = [];
+
+var whenAppHostConnected = q.defer(),
+    whenSimHostReady     = q.defer();
+
+function setupAppHostHandlers(socket) {
+    log.log('Setup handlers for APP_HOST');
+
+    socket.on('exec', function (data) {
+        emitToHost(SIM_HOST, 'exec', data);
+    });
+
+    socket.on('plugin-message', function (data) {
+        emitToHost(SIM_HOST, 'plugin-message', data);
+    });
+
+    socket.on('plugin-method', function (data, callback) {
+        emitToHost(SIM_HOST, 'plugin-method', data, callback);
+    });
+
+    socket.on('telemetry', function (data) {
+        telemetry.handleClientTelemetry(data);
+    });
+
+    // Set up live reload if necessary.
+    if (config.liveReload) {
+        log.log('Starting live reload.');
+        livereload.init(socket);
+    }
+
+    // Set up telemetry if necessary.
+    if (config.telemetry) {
+        socket.emit('init-telemetry');
+    }
+    
+    // Set up xhr proxy
+    if (config.xhrProxy) {
+        socket.emit('init-xhr-proxy');
+    }
+
+    handlePendingEmits(APP_HOST);
+}
+
+function handleSimHostRegistration(socket) {
+    socket.once('ready', handleSimHostReady);
+    emitToHost(SIM_HOST, 'init');
+}
+
+function handleSimHostReady() {
+    // resolving this promise will result in app-host handlers setupp
+    whenSimHostReady.resolve();
+
+    setupSimHostHandlers();
+
+    whenAppHostConnected.promise
+        .then(function () {
+            var socket = hostSockets.APP_HOST;
+            socket.once('app-plugin-list', handleAppPluginList);
+
+            emitToHost(APP_HOST, 'init');
+        });
+}
+
+function handleAppPluginList(data) {
+    var socket = hostSockets.SIM_HOST;
+
+    socket.once('start', handleStart);
+
+    emitToHost(SIM_HOST, 'app-plugin-list', data);
+}
+
+function handleStart() {
+    emitToHost(APP_HOST, 'start');
+}
+
+function setupSimHostHandlers() {
+    log.log('Setup handlers for SIM_HOST');
+
+    var socket = hostSockets.SIM_HOST;
+
+    socket.on('exec-success', function (data) {
+        emitToHost(APP_HOST, 'exec-success', data);
+    });
+    socket.on('exec-failure', function (data) {
+        emitToHost(APP_HOST, 'exec-failure', data);
+    });
+
+    socket.on('plugin-message', function (data) {
+        emitToHost(APP_HOST, 'plugin-message', data);
+    });
+
+    socket.on('plugin-method', function (data, callback) {
+        emitToHost(APP_HOST, 'plugin-method', data, callback);
+    });
+
+    socket.on('telemetry', function (data) {
+        telemetry.handleClientTelemetry(data);
+    });
+
+    // Set up telemetry if necessary.
+    if (config.telemetry) {
+        socket.emit('init-telemetry');
+    }
+
+    handlePendingEmits(SIM_HOST);
+
+}
 
 function init(server) {
     var io = require('socket.io')(server);
 
     io.on('connection', function (socket) {
         socket.on('register-app-host', function () {
-            log.log('App-host registered with server.');
-
-            // It only makes sense to have one app host per server. If more than one tries to connect, always take the
-            // most recent.
-            hostSockets[appHost] = socket;
-
-            socket.on('exec', function (data) {
-                emitToHost(simHost, 'exec', data);
-            });
-
-            socket.on('plugin-message', function (data) {
-                emitToHost(simHost, 'plugin-message', data);
-            });
-
-            socket.on('plugin-method', function (data, callback) {
-                emitToHost(simHost, 'plugin-method', data, callback);
-            });
-
-            socket.on('telemetry', function (data) {
-                telemetry.handleClientTelemetry(data);
-            });
-
-            // Set up live reload if necessary.
-            if (config.liveReload) {
-                log.log('Starting live reload.');
-                livereload.init(socket);
-            }
-
-            // Set up telemetry if necessary.
-            if (config.telemetry) {
-                socket.emit('init-telemetry');
-            }
-            
-            // Set up xhr proxy
-            if (config.xhrProxy) {
-                socket.emit('init-xhr-proxy');
-            }
-
-            handlePendingEmits(appHost);
+            log.log('APP_HOST connected to the server');
+            hostSockets[APP_HOST] = socket;
+            whenSimHostReady.promise
+                .then(function () {
+                    setupAppHostHandlers(socket);
+                });
+            whenAppHostConnected.resolve();
         });
 
         socket.on('register-simulation-host', function () {
-            log.log('Simulation host registered with server.');
-
-            // It only makes sense to have one simulation host per server. If more than one tries to connect, always
-            // take the most recent.
-            hostSockets[simHost] = socket;
-
-            socket.on('exec-success', function (data) {
-                emitToHost(appHost, 'exec-success', data);
-            });
-            socket.on('exec-failure', function (data) {
-                emitToHost(appHost, 'exec-failure', data);
-            });
-
-            socket.on('plugin-message', function (data) {
-                emitToHost(appHost, 'plugin-message', data);
-            });
-
-            socket.on('plugin-method', function (data, callback) {
-                emitToHost(appHost, 'plugin-method', data, callback);
-            });
-
-            socket.on('telemetry', function (data) {
-                telemetry.handleClientTelemetry(data);
-            });
-
-            // Set up telemetry if necessary.
-            if (config.telemetry) {
-                socket.emit('init-telemetry');
-            }
-
-            handlePendingEmits(simHost);
+            log.log('SIM_HOST connected to the server');
+            hostSockets[SIM_HOST] = socket;
+            handleSimHostRegistration(socket);
         });
     });
 }
 
 function handlePendingEmits(host) {
+    log.log('Handling pending emits for ' + host);
     pendingEmits[host].forEach(function (pendingEmit) {
-        log.log('Handling pending emit \'' + pendingEmit.msg + '\' to ' + host);
         emitToHost(host, pendingEmit.msg, pendingEmit.data, pendingEmit.callback);
     });
     pendingEmits[host] = [];
@@ -114,9 +167,10 @@ function emitToHost(host, msg, data, callback) {
     }
 }
 
+
 function invalidateSimHost() {
     // Simulation host is being refreshed, so we'll wait on a new connection.
-    hostSockets[simHost] = null;
+    hostSockets[SIM_HOST] = undefined;
 }
 
 module.exports.init = init;
