@@ -23,6 +23,16 @@ pendingEmits[SIM_HOST] = [];
 var whenAppHostConnected = q.defer(),
     whenSimHostReady     = q.defer();
 
+function resetAppHostState() {
+    whenAppHostConnected = q.defer();
+    whenAppHostConnected.promise.then(onAppHostConnected);
+}
+
+function resetSimHostState() {
+    whenSimHostReady = q.defer();
+    whenSimHostReady.promise.then(onSimHostReady);
+}
+
 function setupAppHostHandlers() {
     var socket = hostSockets[APP_HOST];
     log.log('Setup handlers for APP_HOST');
@@ -139,6 +149,10 @@ function init(server) {
     io.on('connection', function (socket) {
         socket.on('register-app-host', function () {
             log.log('APP_HOST connected to the server');
+            if (hostSockets[APP_HOST]) {
+                log.log('Overriding previously connected APP_HOST');
+                resetAppHostState();
+            }
             hostSockets[APP_HOST] = socket;
             whenSimHostReady.promise
                 .then(onSimHostReady);
@@ -147,6 +161,10 @@ function init(server) {
 
         socket.on('register-simulation-host', function () {
             log.log('SIM_HOST connected to the server');
+            if (hostSockets[SIM_HOST]) {
+                log.log('Overriding previously connected SIM_HOST');
+                resetSimHostState();
+            }
             hostSockets[SIM_HOST] = socket;
             handleSimHostRegistration(socket);
         });
@@ -158,19 +176,18 @@ function init(server) {
                     type = t;
                 }
             });
+            if (!type) {
+                log.log('Disconnect for an inactive socket');
+                return;
+            }
             hostSockets[type] = undefined;
             log.log(type + ' disconnected to the server');
             switch (type) {
                 case APP_HOST:
-                    whenAppHostConnected = q.defer();
-                    whenAppHostConnected.promise.then(onAppHostConnected);
+                    resetAppHostState();
                     break;
                 case SIM_HOST:
-                    whenSimHostReady = q.defer();
-                    whenSimHostReady.promise.then(onSimHostReady);
-                    break;
-                default:
-                    throw new Error('Got a disconnect from an unknown socket');
+                    resetSimHostState();
                     break;
             }
 
