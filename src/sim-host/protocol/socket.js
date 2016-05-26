@@ -1,10 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 
-var telemetry = require('telemetry-helper');
+var Q = require('q'),
+    telemetry = require('telemetry-helper');
 
 var socket;
 
 module.exports.initialize = function (pluginHandlers, serviceToPluginMap) {
+    var deferred = Q.defer(),
+        promise = deferred.promise;
+
     socket = io();
     module.exports.socket = socket;
 
@@ -66,12 +70,16 @@ module.exports.initialize = function (pluginHandlers, serviceToPluginMap) {
     });
 
     socket.on('init', function () {
-        socket.emit('ready');
+        deferred.resolve();
     });
+
+    socket.emit('register-simulation-host');
+
+    return promise;
 };
 
 module.exports.notifyPluginsReady = function () {
-    socket.emit('register-simulation-host');
+    socket.emit('ready');
 };
 
 function getSuccess(index) {

@@ -65,6 +65,12 @@ function setCordova(originalCordova) {
             require('xhr-proxy').init(); 
         });
 
+        applyPlugins(plugins);
+        applyPlugins(pluginHandlersDefinitions, pluginHandlers, serviceToPluginMap);
+        applyPlugins(pluginClobberDefinitions, window);
+
+        socket.emit('app-host-plugins-ready');
+
         channel.onNativeReady.fire();
         if (cordova.platformId !== 'browser') {
             channel.onPluginsReady.subscribe(function () {
@@ -156,9 +162,6 @@ var pluginClobberDefinitions = {
 };
 
 var pluginMessages = {};
-applyPlugins(plugins);
-applyPlugins(pluginHandlersDefinitions, pluginHandlers, serviceToPluginMap);
-applyPlugins(pluginClobberDefinitions, window);
 
 function applyPlugins(plugins, clobberScope, clobberToPluginMap) {
     Object.keys(plugins).forEach(function (pluginId) {

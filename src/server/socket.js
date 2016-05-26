@@ -69,7 +69,10 @@ function setupAppHostHandlers() {
         socket.emit('init-xhr-proxy');
     }
 
-    handlePendingEmits(APP_HOST);
+    socket.on('app-host-plugins-ready', function () {
+        handlePendingEmits(SIM_HOST);
+        handlePendingEmits(APP_HOST);
+    });
 }
 
 function handleSimHostRegistration(socket) {
@@ -89,10 +92,10 @@ function onSimHostReady() {
 }
 
 function handleSimHostReady() {
+    setupSimHostHandlers();
+
     // resolving this promise will result in app-host handlers setupp
     whenSimHostReady.resolve();
-
-    setupSimHostHandlers();
 
     whenAppHostConnected.promise
         .then(onAppHostConnected);
@@ -138,9 +141,6 @@ function setupSimHostHandlers() {
     if (config.telemetry) {
         socket.emit('init-telemetry');
     }
-
-    handlePendingEmits(SIM_HOST);
-
 }
 
 function init(server) {

@@ -11,13 +11,15 @@ var pluginHandlers = {};
 var serviceToPluginMap = {};
 
 customElements.initialize();
-socket.initialize(pluginHandlers, serviceToPluginMap);
 
 window.addEventListener('DOMContentLoaded', function () {
     sizeContent();
 
-    // Initialize standard modules, then plugins
-    db.initialize().then(initializePlugins);
+    socket.initialize(pluginHandlers, serviceToPluginMap)
+        .then(function () {
+            // Initialize standard modules, then plugins
+            db.initialize().then(initializePlugins);
+        });
 });
 
 window.addEventListener('resize', function () {
