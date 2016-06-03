@@ -44,9 +44,9 @@ module.exports = function (messages) {
         }
     }
 
-    function _updateGpsMapZoom(goUp) {
-        var inc = goUp ? 1 : -1;
-        _gpsMapZoomSet(_gpsMapZoomLevel + inc);
+    function _updateGpsMapZoom(level) {
+        _gpsMapZoomLevel = level;
+        _gpsMapZoomSet(_gpsMapZoomLevel);
         _updateGpsMap();
     }
 
@@ -79,8 +79,7 @@ module.exports = function (messages) {
             { control: 'geo-speed' },
             { control: 'geo-delay' },
             { control: 'geo-gpxfile-button', event: 'click' },
-            { control: 'geo-map-zoom-decrease', event: 'click' },
-            { control: 'geo-map-zoom-increase', event: 'click' }
+            { control: 'geo-map-zoom'}
         ];
 
         basicTelemetryEvents.forEach(function (controlEvent) {
@@ -239,7 +238,7 @@ module.exports = function (messages) {
 
                         dblclick: function () {
                             mapEventTelemetryHandler();
-                            _updateGpsMapZoom(true);
+                            // TODO upate to receive a value _updateGpsMapZoom(true);
                         }
                     },
                     { double: true }
@@ -441,11 +440,8 @@ module.exports = function (messages) {
 
             _gpsMapZoomLevel = db.retrieve(constants.GEO.MAP_ZOOM_KEY) || 14;
 
-            document.querySelector('#geo-map-zoom-decrease').addEventListener('click', function () {
-                _updateGpsMapZoom(false);
-            });
-            document.querySelector('#geo-map-zoom-increase').addEventListener('click', function () {
-                _updateGpsMapZoom(true);
+            document.getElementById('geo-map-zoom').addEventListener('input', function () {
+                // TODO _updateGpsMapZoom(true);
             });
 
             utils.bindAutoSaveEvent('#' + GEO_OPTIONS.LATITUDE, updateGeo);
@@ -454,12 +450,12 @@ module.exports = function (messages) {
             utils.bindAutoSaveEvent('#' + GEO_OPTIONS.ACCURACY, updateGeo);
             utils.bindAutoSaveEvent('#' + GEO_OPTIONS.ALTITUDE_ACCURACY, updateGeo);
 
-            document.querySelector('#' + GEO_OPTIONS.DELAY).addEventListener('change', function () {
+            delay.addEventListener('change', function () {
                 updateGeo();
                 delayLabel.textContent = delay.value;
             });
 
-            document.querySelector('#' + GEO_OPTIONS.DELAY).addEventListener('input', function () {
+            delay.addEventListener('input', function () {
                 updateGeo();
                 delayLabel.textContent = delay.value;
             });
