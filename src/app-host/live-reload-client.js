@@ -115,7 +115,6 @@ module.exports.start = function (sock) {
      */
     function onFileChanged(fileRelativePath) {
         var associatedNodes = findDomNodesForFilePath(fileRelativePath);
-        var canRefresh = false;
 
         if (associatedNodes.length) {
             refreshFile(fileRelativePath, associatedNodes);
